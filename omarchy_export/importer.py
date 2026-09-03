@@ -103,7 +103,13 @@ def print_plan(actions, notes: list[str]) -> None:
         print(f"  {util._c(util.CYAN, 'note     ')}  {note}")
 
 
-def apply_actions(actions, stage: Path, backup_root: Path) -> int:
+def _log_entry(kind: str, entry: dict, log: dict) -> None:
+    log["actions"].append({"action": kind, "target": entry["target"], "cat": entry["cat"]})
+    if kind == "add":
+        log["added"].append(entry["target"])
+
+
+def apply_actions(actions, stage: Path, backup_root: Path, log: dict) -> int:
     applied = 0
     for kind, entry in actions:
         if kind in ("skip-machine", "skip-missing"):
@@ -120,6 +126,7 @@ def apply_actions(actions, stage: Path, backup_root: Path) -> int:
             target.write_text(merged)
         else:
             shutil.copy2(src, target)
+        _log_entry(kind, entry, log)
         applied += 1
     return applied
 
@@ -182,20 +189,24 @@ def run_import(args) -> int:
 
     timestamp = time.strftime("%Y%m%d-%H%M%S")
     backup_root = EXPORT_STATE / "backups" / timestamp
-    applied = apply_actions(actions, stage, backup_root)
+    log = {"bundle": bundle.name, "applied": timestamp, "added": [], "actions": []}
+    applied = apply_actions(actions, stage, backup_root, log)
     util.ok(f"{applied} files written (backups: {backup_root})" if applied else "no file changes")
 
     notes: list[str] = []
     if "plugins" in selected_ids:
-        notes.extend(special.import_plugins(stage, backup_root))
+        notes.extend(special.import_plugins(stage, backup_root, log))
     if "packages" in selected_ids:
         notes.extend(special.import_packages(stage))
     if "devlink" in selected_ids:
         notes.extend(special.import_devlink(stage))
     if "defaults" in selected_ids:
-        notes.extend(special.import_defaults(stage, backup_root))
+        notes.extend(special.import_defaults(stage, backup_root, log))
     for note in notes:
         util.info(note)
+
+    if log["actions"]:
+        (backup_root / "import-log.json").write_text(json.dumps(log, indent=2) + "\n")
 
     post_import_actions(actions, args)
     shutil.rmtree(stage, ignore_errors=True)

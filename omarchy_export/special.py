@@ -39,7 +39,7 @@ def collect_plugins(stage: Path) -> dict:
     return meta
 
 
-def import_plugins(stage: Path, backup_root: Path) -> list[str]:
+def import_plugins(stage: Path, backup_root: Path, log: dict | None = None) -> list[str]:
     notes: list[str] = []
     meta_path = stage / "plugins.json"
     plugins_dir = OMARCHY / "plugins"
@@ -49,7 +49,8 @@ def import_plugins(stage: Path, backup_root: Path) -> list[str]:
     for entry in meta.get("plugins", []):
         pid = entry["id"]
         target = plugins_dir / pid
-        if target.exists():
+        existed = target.exists()
+        if existed:
             util.backup_file(target, backup_root)
             shutil.rmtree(target)
         git_info = entry.get("git") or {}
@@ -82,6 +83,11 @@ def import_plugins(stage: Path, backup_root: Path) -> list[str]:
                 else:
                     notes.append(f"plugin {pid}: patch failed to apply cleanly (kept cloned/bundled state)")
         notes.append(f"plugin {pid}: installed")
+        if log is not None:
+            rel = target.resolve().relative_to(HOME).as_posix()
+            log["actions"].append({"action": "overwrite" if existed else "add", "target": rel, "cat": "plugins"})
+            if not existed:
+                log["added"].append(rel)
     return notes
 
 
@@ -224,7 +230,7 @@ def _dir_files_safe(base: Path, archive_prefix: str) -> list[FileSpec]:
     return specs
 
 
-def import_defaults(stage: Path, backup_root: Path) -> list[str]:
+def import_defaults(stage: Path, backup_root: Path, log: dict | None = None) -> list[str]:
     notes: list[str] = []
     copies = [
         ("defaults/agent", OMARCHY / "defaults" / "agent"),
@@ -235,14 +241,26 @@ def import_defaults(stage: Path, backup_root: Path) -> list[str]:
     for archive, target in copies:
         src = stage / archive
         if src.exists():
+            existed = target.exists()
             util.backup_file(target, backup_root)
             util.copy_file(src, target)
+            if log is not None:
+                rel = target.resolve().relative_to(HOME).as_posix()
+                log["actions"].append({"action": "overwrite" if existed else "add", "target": rel, "cat": "defaults"})
+                if not existed:
+                    log["added"].append(rel)
     toggles_src = stage / "defaults" / "toggles"
     if toggles_src.exists():
         toggles_target = STATE / "toggles"
-        if toggles_target.exists():
+        existed = toggles_target.exists()
+        if existed:
             util.backup_file(toggles_target, backup_root)
         util.copy_tree(toggles_src, toggles_target)
+        if log is not None:
+            rel = toggles_target.resolve().relative_to(HOME).as_posix()
+            log["actions"].append({"action": "overwrite" if existed else "add", "target": rel, "cat": "defaults"})
+            if not existed:
+                log["added"].append(rel)
     meta_path = stage / "defaults.json"
     if meta_path.exists():
         meta = json.loads(meta_path.read_text())

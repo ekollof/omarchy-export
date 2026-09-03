@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 from . import VERSION
-from . import export, importer, menu, util
+from . import export, importer, menu, rollback, util
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -39,6 +39,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_menu.add_argument("--remove", action="store_true", help="remove the menu entry")
     p_menu.set_defaults(func=run_menu)
 
+    p_rollback = sub.add_parser("rollback", help="roll back the latest import using its backup")
+    p_rollback.add_argument("timestamp", nargs="?", help="backup timestamp (default: latest); see --list")
+    p_rollback.add_argument("--list", action="store_true", help="list available backups")
+    p_rollback.add_argument("--yes", "-y", action="store_true", help="apply without confirmation")
+    p_rollback.set_defaults(func=rollback.run_rollback)
+
     return parser
 
 
@@ -68,6 +74,7 @@ def run_menu(args) -> int:
 ACTIONS = [
     ("export", "Export settings to a bundle"),
     ("import", "Import settings from a bundle"),
+    ("rollback", "Roll back the last import"),
     ("menu", "Install Omarchy menu entry"),
     ("quit", "Quit"),
 ]
@@ -115,6 +122,8 @@ def interactive_picker() -> int:
         if not raw:
             return 1
         return importer.run_import(parser.parse_args(["import", raw]))
+    if action == "rollback":
+        return rollback.run_rollback(parser.parse_args(["rollback"]))
     return menu.install()
 
 

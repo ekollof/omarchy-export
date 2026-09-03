@@ -22,6 +22,9 @@ omarchy-export list settings.tar.gz
 omarchy-export import settings.tar.gz             # pick categories, preview plan, confirm
 omarchy-export import settings.tar.gz --dry-run  # plan only
 omarchy-export import settings.tar.gz --only hypr-bindings,shell,themes --yes
+omarchy-export rollback           # undo the latest import from its backup
+omarchy-export rollback --list    # show available backups
+omarchy-export rollback <timestamp>
 omarchy-export menu             # install the "Export / Import settings" menu row
 omarchy-export menu --remove
 ```
@@ -52,12 +55,25 @@ omarchy-export menu --remove
 Export and import are independent selections: export only what you want to
 share, import only what the target machine needs.
 
-## Safety model
+- Hooks and plugins contain code; warnings are surfaced at both export and
+  import.
+
+## Rollback
+
+Every import that changes files records an `import-log.json` next to its
+backup. `omarchy-export rollback` restores the most recent backup, removes
+files the import had added, and prunes directories left empty. Before touching
+anything it snapshots the current state, so a rollback is itself reversible
+with `omarchy-export rollback <snapshot-name>` (the command prints it).
+Backups without an import log (from older versions) are restored as-is and
+added files are kept. Hyprland is reloaded and the shell restarted after the
+same categories that triggered it on import.
 
 - Bundles carry a manifest with SHA256 checksums; import aborts on mismatch.
 - Overwritten files are backed up to
   `~/.local/state/omarchy-export/backups/<timestamp>/` preserving `$HOME`
-  relative paths.
+  relative paths, together with an `import-log.json` recording exactly what
+  the import changed.
 - `shell.json` is merged (imported keys win, target-only keys survive).
 - Terminal configs keep their Omarchy theme include/import lines.
 - Monitors are excluded from import unless explicitly forced.
