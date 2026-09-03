@@ -125,7 +125,7 @@ def run_export(args) -> int:
                     tar.add(p, arcname=p.relative_to(stage).as_posix())
 
     total = len(checksums)
-    util.ok(f"wrote {output}")
+    util.ok(f"wrote {output.resolve()}")
     util.info(f"{total} files, {util.human_size(output.stat().st_size)}, categories: {', '.join(manifest_categories)}")
     for cid, meta in manifest_categories.items():
         for w in meta.get("warnings", []):
